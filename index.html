@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مكتبة الجامعة - Jam3a Library</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Auth Container -->
+        <div id="auth-container" class="auth-wrapper">
+            <div class="auth-box">
+                <div class="logo-section">
+                    <div class="logo">📚</div>
+                    <h1>مكتبة الجامعة</h1>
+                    <p>مجموعتك الشخصية من الكتب</p>
+                </div>
+                
+                <!-- Login Form -->
+                <div id="login-form" class="auth-form">
+                    <h2>تسجيل الدخول</h2>
+                    <form onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <input type="email" id="login-email" required placeholder="البريد الإلكتروني">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="login-password" required placeholder="كلمة المرور">
+                        </div>
+                        <button type="submit" class="btn-primary">دخول</button>
+                    </form>
+                    <div class="auth-links">
+                        <p>ليس لديك حساب؟ <a href="#" onclick="showSignup()">إنشاء حساب</a></p>
+                    </div>
+                    <div class="admin-hint">
+                        <p>للإدارة: <a href="#" onclick="showAdminLogin()">دخول كمدير</a></p>
+                    </div>
+                </div>
+
+                <!-- Signup Form -->
+                <div id="signup-form" class="auth-form hidden">
+                    <h2>إنشاء حساب جديد</h2>
+                    <form onsubmit="handleSignup(event)">
+                        <div class="form-group">
+                            <input type="text" id="signup-name" required placeholder="الاسم الكامل">
+                        </div>
+                        <div class="form-group">
+                            <input type="email" id="signup-email" required placeholder="البريد الإلكتروني">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="signup-password" required placeholder="كلمة المرور" minlength="6">
+                        </div>
+                        <button type="submit" class="btn-primary">إنشاء حساب</button>
+                    </form>
+                    <div class="auth-links">
+                        <p>لديك حساب بالفعل؟ <a href="#" onclick="showLogin()">تسجيل الدخول</a></p>
+                    </div>
+                </div>
+
+                <!-- Admin Login Form -->
+                <div id="admin-form" class="auth-form hidden">
+                    <h2>دخول المدير</h2>
+                    <form onsubmit="handleAdminLogin(event)">
+                        <div class="form-group">
+                            <input type="text" id="admin-username" required placeholder="اسم المدير">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="admin-password" required placeholder="كلمة المرور">
+                        </div>
+                        <button type="submit" class="btn-primary">دخول</button>
+                    </form>
+                    <div class="auth-links">
+                        <p><a href="#" onclick="showLogin()">العودة لتسجيل الدخول</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="dashboard hidden">
+            <!-- Header -->
+            <header class="dashboard-header">
+                <div class="header-content">
+                    <h1>📚 مكتبة الجامعة</h1>
+                    <div class="user-info">
+                        <span id="user-name"></span>
+                        <button onclick="logout()" class="btn-logout">تسجيل خروج</button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Navigation -->
+            <nav class="dashboard-nav">
+                <button class="nav-btn active" onclick="showSection('books')" data-section="books">
+                    <span class="nav-icon">📖</span> الكتب
+                </button>
+                <button class="nav-btn" onclick="showSection('news')" data-section="news">
+                    <span class="nav-icon">📰</span> الأخبار
+                </button>
+                <button class="nav-btn" onclick="showSection('articles')" data-section="articles">
+                    <span class="nav-icon">📝</span> المقالات
+                </button>
+                <button class="nav-btn admin-only" onclick="showSection('admin')" data-section="admin">
+                    <span class="nav-icon">⚙️</span> لوحة التحكم
+                </button>
+            </nav>
+
+            <!-- Books Section -->
+            <section id="books-section" class="dashboard-section active">
+                <div class="section-header">
+                    <h2>الكتب</h2>
+                    <div class="search-box">
+                        <input type="text" id="book-search" placeholder="البحث في الكتب..." oninput="searchBooks()">
+                    </div>
+                </div>
+                <div id="books-grid" class="books-grid"></div>
+            </section>
+
+            <!-- News Section -->
+            <section id="news-section" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h2>الأخبار</h2>
+                </div>
+                <div id="news-list" class="articles-list"></div>
+            </section>
+
+            <!-- Articles Section -->
+            <section id="articles-section" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h2>المقالات</h2>
+                </div>
+                <div id="articles-list" class="articles-list"></div>
+            </section>
+
+            <!-- Admin Panel -->
+            <section id="admin-section" class="dashboard-section hidden">
+                <div class="admin-panel">
+                    <h2>لوحة تحكم المدير</h2>
+                    
+                    <!-- Add/Edit Book Form -->
+                    <div class="admin-card">
+                        <h3 id="book-form-title">إضافة كتاب جديد</h3>
+                        <form onsubmit="saveBook(event)" class="admin-form">
+                            <input type="hidden" id="book-id">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <input type="text" id="book-title" required placeholder="عنوان الكتاب">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" id="book-author" required placeholder="المؤلف">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <input type="text" id="book-category" required placeholder="التصنيف">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" id="book-year" placeholder="سنة النشر">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <textarea id="book-description" placeholder="وصف الكتاب" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>صورة الغلاف</label>
+                                <div class="file-upload" onclick="document.getElementById('book-cover').click()">
+                                    <input type="file" id="book-cover" accept="image/*" onchange="previewImage(event, 'book-preview')">
+                                    <div id="book-preview" class="image-preview"></div>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">حفظ</button>
+                                <button type="button" class="btn-secondary" onclick="resetBookForm()">إلغاء</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Add/Edit News Form -->
+                    <div class="admin-card">
+                        <h3 id="news-form-title">إضافة خبر جديد</h3>
+                        <form onsubmit="saveNews(event)" class="admin-form">
+                            <input type="hidden" id="news-id">
+                            <div class="form-group">
+                                <input type="text" id="news-title" required placeholder="عنوان الخبر">
+                            </div>
+                            <div class="form-group">
+                                <textarea id="news-content" placeholder="محتوى الخبر" rows="4" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>صورة الخبر</label>
+                                <div class="file-upload" onclick="document.getElementById('news-image').click()">
+                                    <input type="file" id="news-image" accept="image/*" onchange="previewImage(event, 'news-preview')">
+                                    <div id="news-preview" class="image-preview"></div>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">حفظ</button>
+                                <button type="button" class="btn-secondary" onclick="resetNewsForm()">إلغاء</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Add/Edit Article Form -->
+                    <div class="admin-card">
+                        <h3 id="article-form-title">إضافة مقالة جديدة</h3>
+                        <form onsubmit="saveArticle(event)" class="admin-form">
+                            <input type="hidden" id="article-id">
+                            <div class="form-group">
+                                <input type="text" id="article-title" required placeholder="عنوان المقالة">
+                            </div>
+                            <div class="form-group">
+                                <input type="text" id="article-author" required placeholder="كاتب المقالة">
+                            </div>
+                            <div class="form-group">
+                                <textarea id="article-content" placeholder="محتوى المقالة" rows="6" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>صورة المقالة</label>
+                                <div class="file-upload" onclick="document.getElementById('article-image').click()">
+                                    <input type="file" id="article-image" accept="image/*" onchange="previewImage(event, 'article-preview')">
+                                    <div id="article-preview" class="image-preview"></div>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">حفظ</button>
+                                <button type="button" class="btn-secondary" onclick="resetArticleForm()">إلغاء</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Manage Admins -->
+                    <div class="admin-card">
+                        <h3>إدارة المديرين</h3>
+                        <div id="admins-list" class="admins-list"></div>
+                        <form onsubmit="addAdmin(event)" class="admin-form" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <h4 style="color: var(--text-secondary); margin-bottom: 15px;">إضافة مدير جديد</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <input type="text" id="new-admin-name" required placeholder="اسم المدير">
+                                </div>
+                                <div class="form-group">
+                                    <input type="password" id="new-admin-password" required placeholder="كلمة المرور" minlength="4">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn-primary">إضافة مدير</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Book Modal -->
+        <div id="book-modal" class="modal hidden" onclick="closeModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div id="book-details" class="item-details"></div>
+            </div>
+        </div>
+
+        <!-- News Modal -->
+        <div id="news-modal" class="modal hidden" onclick="closeModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div id="news-details" class="item-details"></div>
+            </div>
+        </div>
+
+        <!-- Article Modal -->
+        <div id="article-modal" class="modal hidden" onclick="closeModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div id="article-details" class="item-details"></div>
+            </div>
+        </div>
+
+        <!-- Confirm Delete Modal -->
+        <div id="confirm-modal" class="modal hidden" onclick="closeConfirmModal(event)">
+            <div class="modal-content confirm-content" onclick="event.stopPropagation()">
+                <h3>تأكيد الحذف</h3>
+                <p id="confirm-message">هل أنت متأكد من حذف هذا العنصر؟</p>
+                <div class="confirm-actions">
+                    <button onclick="confirmDelete()" class="btn-danger">حذف</button>
+                    <button onclick="closeConfirmModal()" class="btn-secondary">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script src="cloudinary.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
