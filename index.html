@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مكتبة الجامعة - Jam3a Library</title>
+    <meta name="description" content="مكتبة الجامعة - منصة الكتب والقراءة">
+    <title>مكتبة الجامعة</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -12,6 +13,12 @@
 </head>
 <body>
     <div id="app">
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="loading-spinner hidden">
+            <div class="spinner"></div>
+            <p>جاري التحميل...</p>
+        </div>
+
         <!-- Auth Container -->
         <div id="auth-container" class="auth-wrapper">
             <div class="auth-box">
@@ -85,8 +92,14 @@
             <!-- Header -->
             <header class="dashboard-header">
                 <div class="header-content">
-                    <h1>📚 مكتبة الجامعة</h1>
-                    <div class="user-info">
+                    <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+                        <h1>📚 مكتبة الجامعة</h1>
+                    </div>
+                    <div class="header-right">
+                        <button class="theme-toggle" onclick="toggleTheme()" title="تبديل الوضع">
+                            <span class="theme-icon">🌙</span>
+                        </button>
                         <span id="user-name"></span>
                         <button onclick="logout()" class="btn-logout">تسجيل خروج</button>
                     </div>
@@ -94,30 +107,90 @@
             </header>
 
             <!-- Navigation -->
-            <nav class="dashboard-nav">
+            <nav class="dashboard-nav" id="mobile-nav">
                 <button class="nav-btn active" onclick="showSection('books')" data-section="books">
-                    <span class="nav-icon">📖</span> الكتب
+                    <span class="nav-icon">📖</span> <span class="nav-text">الكتب</span>
+                </button>
+                <button class="nav-btn" onclick="showSection('favorites')" data-section="favorites">
+                    <span class="nav-icon">❤️</span> <span class="nav-text">المفضلة</span>
                 </button>
                 <button class="nav-btn" onclick="showSection('news')" data-section="news">
-                    <span class="nav-icon">📰</span> الأخبار
+                    <span class="nav-icon">📰</span> <span class="nav-text">الأخبار</span>
                 </button>
                 <button class="nav-btn" onclick="showSection('articles')" data-section="articles">
-                    <span class="nav-icon">📝</span> المقالات
+                    <span class="nav-icon">📝</span> <span class="nav-text">المقالات</span>
                 </button>
                 <button class="nav-btn admin-only" onclick="showSection('admin')" data-section="admin">
-                    <span class="nav-icon">⚙️</span> لوحة التحكم
+                    <span class="nav-icon">⚙️</span> <span class="nav-text">لوحة التحكم</span>
+                </button>
+                <button class="nav-btn" onclick="showSection('profile')" data-section="profile">
+                    <span class="nav-icon">👤</span> <span class="nav-text">ملفي</span>
                 </button>
             </nav>
+
+            <!-- Profile Section -->
+            <section id="profile-section" class="dashboard-section hidden">
+                <div class="profile-container">
+                    <div class="profile-card">
+                        <div class="profile-avatar">👤</div>
+                        <h2 id="profile-name">اسم المستخدم</h2>
+                        <p id="profile-email">email@example.com</p>
+                        <button class="btn-primary" onclick="showEditName()">تعديل الاسم</button>
+                        <button class="btn-secondary" onclick="showChangePassword()">تغيير كلمة المرور</button>
+                    </div>
+                    
+                    <!-- Edit Name Form -->
+                    <div class="change-password-card" id="edit-name-form">
+                        <h3>تعديل الاسم</h3>
+                        <form onsubmit="changeName(event)">
+                            <div class="form-group">
+                                <input type="text" id="new-name" placeholder="الاسم الجديد" required>
+                            </div>
+                            <button type="submit" class="btn-primary">حفظ</button>
+                            <button type="button" class="btn-secondary" onclick="hideEditName()">إلغاء</button>
+                        </form>
+                    </div>
+                    
+                    <!-- Change Password Form -->
+                    <div class="change-password-card" id="change-password-form">
+                        <h3>تغيير كلمة المرور</h3>
+                        <form onsubmit="changePassword(event)">
+                            <div class="form-group">
+                                <input type="password" id="current-password" placeholder="كلمة المرور الحالية" required>
+                            </div>
+                            <div class="form-group">
+                                <input type="password" id="new-password" placeholder="كلمة المرور الجديدة" minlength="6" required>
+                            </div>
+                            <div class="form-group">
+                                <input type="password" id="confirm-password" placeholder="تأكيد كلمة المرور" required>
+                            </div>
+                            <button type="submit" class="btn-primary">تغيير</button>
+                            <button type="button" class="btn-secondary" onclick="hideChangePassword()">إلغاء</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
 
             <!-- Books Section -->
             <section id="books-section" class="dashboard-section active">
                 <div class="section-header">
                     <h2>الكتب</h2>
-                    <div class="search-box">
-                        <input type="text" id="book-search" placeholder="البحث في الكتب..." oninput="searchBooks()">
+                    <div class="filters-container">
+                        <input type="text" id="book-search" placeholder="🔍 بحث..." oninput="filterBooks()">
+                        <select id="category-filter" onchange="filterBooks()">
+                            <option value="">الكل</option>
+                        </select>
                     </div>
                 </div>
                 <div id="books-grid" class="books-grid"></div>
+            </section>
+
+            <!-- Favorites Section -->
+            <section id="favorites-section" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h2>❤️ المفضلة</h2>
+                </div>
+                <div id="favorites-grid" class="books-grid"></div>
             </section>
 
             <!-- News Section -->
@@ -140,6 +213,44 @@
             <section id="admin-section" class="dashboard-section hidden">
                 <div class="admin-panel">
                     <h2>لوحة تحكم المدير</h2>
+                    
+                    <!-- Statistics -->
+                    <div class="stats-container">
+                        <div class="stat-card">
+                            <span class="stat-icon">📚</span>
+                            <div class="stat-info">
+                                <span class="stat-number" id="stat-books">0</span>
+                                <span class="stat-label">الكتب</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-icon">📰</span>
+                            <div class="stat-info">
+                                <span class="stat-number" id="stat-news">0</span>
+                                <span class="stat-label">الأخبار</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-icon">📝</span>
+                            <div class="stat-info">
+                                <span class="stat-number" id="stat-articles">0</span>
+                                <span class="stat-label">المقالات</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-icon">👥</span>
+                            <div class="stat-info">
+                                <span class="stat-number" id="stat-users">0</span>
+                                <span class="stat-label">المستخدمين</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manage Users -->
+                    <div class="admin-card">
+                        <h3>👥 إدارة المستخدمين</h3>
+                        <div id="users-list" class="users-list"></div>
+                    </div>
                     
                     <!-- Add/Edit Book Form -->
                     <div class="admin-card">

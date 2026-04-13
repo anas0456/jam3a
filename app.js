@@ -4,10 +4,163 @@ let books = [];
 let news = [];
 let articles = [];
 let deleteTarget = null;
+let favorites = [];
+
+// Helper function to format date safely
+function formatDate(timestamp) {
+    if (!timestamp) return '';
+    try {
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleDateString('ar');
+    } catch {
+        return '';
+    }
+}
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
+    initTheme();
+    loadFavorites();
     checkAuth();
+});
+
+// Theme functions
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'brown') {
+        document.body.classList.add('light-theme');
+        updateThemeIcon();
+    } else if (savedTheme === 'white') {
+        document.body.classList.add('white-theme');
+        updateThemeIcon();
+    }
+}
+
+function toggleTheme() {
+    const body = document.body;
+    if (!body.classList.contains('light-theme') && !body.classList.contains('white-theme')) {
+        body.classList.add('light-theme');
+        localStorage.setItem('theme', 'brown');
+    } else if (body.classList.contains('light-theme')) {
+        body.classList.remove('light-theme');
+        body.classList.add('white-theme');
+        localStorage.setItem('theme', 'white');
+    } else {
+        body.classList.remove('white-theme');
+        localStorage.setItem('theme', 'dark');
+    }
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    const icon = document.querySelector('.theme-icon');
+    if (icon) {
+        const body = document.body;
+        if (body.classList.contains('white-theme')) {
+            icon.textContent = '☀️';
+        } else if (body.classList.contains('light-theme')) {
+            icon.textContent = '🟤';
+        } else {
+            icon.textContent = '🌙';
+        }
+    }
+}
+
+// Favorites functions
+function loadFavorites() {
+    const saved = localStorage.getItem('favorites');
+    if (saved) {
+        favorites = JSON.parse(saved);
+    }
+}
+
+function saveFavorites() {
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+}
+
+function toggleFavorite(bookId, event) {
+    event.stopPropagation();
+    if (favorites.includes(bookId)) {
+        favorites = favorites.filter(id => id !== bookId);
+        showToast('تمت إزالة من المفضلة', 'success');
+    } else {
+        favorites.push(bookId);
+        showToast('تمت الإضافة للمفضلة', 'success');
+    }
+    saveFavorites();
+    renderBooks(books);
+    renderFavorites();
+}
+
+function isFavorite(bookId) {
+    return favorites.includes(bookId);
+}
+
+function renderFavorites() {
+    const grid = document.getElementById('favorites-grid');
+    const isAdmin = isAdminUser();
+    const favoriteBooks = books.filter(b => favorites.includes(b.id));
+
+    if (favoriteBooks.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <span>❤️</span>
+                <p>لا توجد كتب في المفضلة</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = favoriteBooks.map(book => `
+        <div class="book-card" onclick="viewBook('${book.id}')">
+            <div class="book-cover">
+                ${book.coverUrl ? 
+                    `<img src="${getOptimizedUrl(book.coverUrl)}" alt="${book.title}" loading="lazy">` : 
+                    '📖'}
+                <button class="favorite-btn ${isFavorite(book.id) ? 'active' : ''}" 
+                    onclick="toggleFavorite('${book.id}', event)">
+                    ${isFavorite(book.id) ? '❤️' : '🤍'}
+                </button>
+            </div>
+            <div class="book-info">
+                <h3>${book.title}</h3>
+                <p>${book.author}</p>
+                <span class="category">${book.category}</span>
+                ${isAdmin ? `
+                    <div class="book-actions">
+                        <button class="edit-btn" onclick="event.stopPropagation(); editBook('${book.id}')">✏️ تعديل</button>
+                        <button class="delete-btn" onclick="event.stopPropagation(); deleteItem('book', '${book.id}')">🗑️ حذف</button>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// Mobile menu
+function toggleMobileMenu() {
+    document.getElementById('mobile-nav').classList.toggle('active');
+}
+
+function closeMobileMenu() {
+    document.getElementById('mobile-nav').classList.remove('active');
+}
+
+// Close mobile menu when clicking outside
+document.addEventListener('click', function(e) {
+    const nav = document.getElementById('mobile-nav');
+    const menuBtn = document.querySelector('.mobile-menu-btn');
+    
+    if (nav && nav.classList.contains('active')) {
+        if (!nav.contains(e.target) && !menuBtn.contains(e.target)) {
+            closeMobileMenu();
+        }
+    }
+});
+
+// Also close when clicking on a nav button
+document.querySelectorAll('.dashboard-nav .nav-btn').forEach(btn => {
+    btn.addEventListener('click', closeMobileMenu);
 });
 
 // Check authentication status
@@ -51,6 +204,8 @@ function showDashboard(isAdmin) {
     loadBooks();
     loadNews();
     loadArticles();
+    renderFavorites();
+    populateCategoryFilter();
     showSection('books');
 }
 
@@ -191,6 +346,176 @@ function showSection(section) {
         sec.classList.add('hidden');
     });
     document.getElementById(section + '-section').classList.remove('hidden');
+
+    // Load stats when admin section is shown
+    if (section === 'admin' && isAdminUser()) {
+        loadStats();
+    }
+
+    // Load profile when profile section is shown
+    if (section === 'profile') {
+        loadProfile();
+    }
+}
+
+// Load profile data
+function loadProfile() {
+    if (!currentUser) {
+        showToast('سجل دخول أولاً', 'error');
+        showSection('books');
+        return;
+    }
+
+    document.getElementById('profile-name').textContent = currentUser.name;
+    document.getElementById('profile-email').textContent = currentUser.email;
+    document.getElementById('profile-books').textContent = books.length;
+    document.getElementById('profile-favorites').textContent = favorites.length;
+}
+
+// Show change password form
+function showChangePassword() {
+    document.getElementById('change-password-form').classList.add('show');
+}
+
+// Hide change password form
+function hideChangePassword() {
+    document.getElementById('change-password-form').classList.remove('show');
+    document.getElementById('change-password-form').querySelector('form').reset();
+}
+
+// Change password
+async function changePassword(event) {
+    event.preventDefault();
+    
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+
+    if (newPassword !== confirmPassword) {
+        showToast('كلمات المرور غير متطابقة', 'error');
+        return;
+    }
+
+    try {
+        // Get user from Firestore
+        const snapshot = await db.collection('users')
+            .where('email', '==', currentUser.email)
+            .where('password', '==', currentPassword)
+            .get();
+
+        if (snapshot.empty) {
+            showToast('كلمة المرور الحالية غير صحيحة', 'error');
+            return;
+        }
+
+        // Update password
+        await db.collection('users').doc(snapshot.docs[0].id).update({
+            password: newPassword
+        });
+
+        showToast('تم تغيير كلمة المرور بنجاح', 'success');
+        hideChangePassword();
+    } catch (error) {
+        showToast('خطأ في تغيير كلمة المرور', 'error');
+    }
+}
+
+// Show edit name form
+function showEditName() {
+    document.getElementById('edit-name-form').classList.add('show');
+}
+
+// Hide edit name form
+function hideEditName() {
+    document.getElementById('edit-name-form').classList.remove('show');
+    document.getElementById('edit-name-form').querySelector('form').reset();
+}
+
+// Change name
+async function changeName(event) {
+    event.preventDefault();
+    
+    const newName = document.getElementById('new-name').value;
+    if (!newName.trim()) {
+        showToast('الرجاء إدخال اسم صحيح', 'error');
+        return;
+    }
+
+    try {
+        // Get user from Firestore
+        const snapshot = await db.collection('users')
+            .where('email', '==', currentUser.email)
+            .get();
+
+        if (snapshot.empty) {
+            showToast('المستخدم غير موجود', 'error');
+            return;
+        }
+
+        // Update name
+        await db.collection('users').doc(snapshot.docs[0].id).update({
+            name: newName
+        });
+
+        // Update local storage and current user
+        currentUser.name = newName;
+        localStorage.setItem('userName', newName);
+        
+        // Update displayed name
+        document.getElementById('profile-name').textContent = newName;
+        document.getElementById('user-name').textContent = newName;
+        
+        showToast('تم تغيير الاسم بنجاح', 'success');
+        hideEditName();
+    } catch (error) {
+        showToast('خطأ في تغيير الاسم', 'error');
+    }
+}
+
+// Load statistics
+async function loadStats() {
+    try {
+        const [booksSnap, newsSnap, articlesSnap, usersSnap] = await Promise.all([
+            db.collection('books').get(),
+            db.collection('news').get(),
+            db.collection('articles').get(),
+            db.collection('users').get()
+        ]);
+
+        document.getElementById('stat-books').textContent = booksSnap.size;
+        document.getElementById('stat-news').textContent = newsSnap.size;
+        document.getElementById('stat-articles').textContent = articlesSnap.size;
+        document.getElementById('stat-users').textContent = usersSnap.size;
+
+        // Load users list
+        loadUsersList(usersSnap);
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Load users list
+function loadUsersList(usersSnap) {
+    const list = document.getElementById('users-list');
+    const users = [];
+    usersSnap.forEach(doc => {
+        users.push({ id: doc.id, ...doc.data() });
+    });
+
+    if (users.length === 0) {
+        list.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">لا يوجد مستخدمين</p>';
+        return;
+    }
+
+    list.innerHTML = users.map(user => `
+        <div class="user-item">
+            <div class="info">
+                <span class="name">${user.name}</span>
+                <span class="email">${user.email}</span>
+                <span class="created">تاريخ التسجيل: ${formatDate(user.createdAt) || 'غير معروف'}</span>
+            </div>
+        </div>
+    `).join('');
 }
 
 // Load books
@@ -231,6 +556,10 @@ function renderBooks(booksToRender) {
                 ${book.coverUrl ? 
                     `<img src="${getOptimizedUrl(book.coverUrl)}" alt="${book.title}" loading="lazy">` : 
                     '📖'}
+                <button class="favorite-btn ${isFavorite(book.id) ? 'active' : ''}" 
+                    onclick="toggleFavorite('${book.id}', event)">
+                    ${isFavorite(book.id) ? '❤️' : '🤍'}
+                </button>
             </div>
             <div class="book-info">
                 <h3>${book.title}</h3>
@@ -245,6 +574,34 @@ function renderBooks(booksToRender) {
             </div>
         </div>
     `).join('');
+}
+
+// Filter books
+function filterBooks() {
+    const searchQuery = document.getElementById('book-search').value.toLowerCase();
+    const categoryFilter = document.getElementById('category-filter').value;
+
+    const filtered = books.filter(book => {
+        const matchesSearch = !searchQuery || 
+            book.title.toLowerCase().includes(searchQuery) ||
+            book.author.toLowerCase().includes(searchQuery) ||
+            book.category.toLowerCase().includes(searchQuery);
+        
+        const matchesCategory = !categoryFilter || book.category === categoryFilter;
+        
+        return matchesSearch && matchesCategory;
+    });
+
+    renderBooks(filtered);
+}
+
+// Populate category filter
+function populateCategoryFilter() {
+    const select = document.getElementById('category-filter');
+    const categories = [...new Set(books.map(b => b.category))].sort();
+    
+    select.innerHTML = '<option value="">الكل</option>' + 
+        categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
 }
 
 // Search books
@@ -329,7 +686,7 @@ function viewNews(newsId) {
             `<div class="image-section"><img src="${item.imageUrl}" alt="${item.title}"></div>` : ''}
         <h2>${item.title}</h2>
         <div class="meta">
-            <span>📅 ${item.date ? new Date(item.date).toLocaleDateString('ar') : ''}</span>
+            <span>📅 ${formatDate(item.date)}</span>
         </div>
         <div class="content">
             <p style="white-space: pre-wrap;">${item.content}</p>
@@ -351,7 +708,7 @@ function viewArticle(articleId) {
         <h2>${item.title}</h2>
         <p class="author">✍️ كاتب: ${item.author}</p>
         <div class="meta">
-            <span>📅 ${item.date ? new Date(item.date).toLocaleDateString('ar') : ''}</span>
+            <span>📅 ${formatDate(item.date)}</span>
         </div>
         <div class="content">
             <p style="white-space: pre-wrap;">${item.content}</p>
@@ -496,7 +853,7 @@ function renderNews() {
         <div class="article-card" onclick="viewNews('${item.id}')">
             ${item.imageUrl ? `<img src="${getOptimizedUrl(item.imageUrl)}" alt="${item.title}">` : ''}
             <h3>${item.title}</h3>
-            <p class="meta">${item.date ? new Date(item.date).toLocaleDateString('ar') : ''}</p>
+            <p class="meta">${formatDate(item.date)}</p>
             <p class="content">${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}</p>
             ${isAdmin ? `
                 <div class="article-actions" onclick="event.stopPropagation()">
@@ -628,7 +985,7 @@ function renderArticles() {
         <div class="article-card" onclick="viewArticle('${item.id}')">
             ${item.imageUrl ? `<img src="${getOptimizedUrl(item.imageUrl)}" alt="${item.title}">` : ''}
             <h3>${item.title}</h3>
-            <p class="meta">كاتب: ${item.author} ${item.date ? ' - ' + new Date(item.date).toLocaleDateString('ar') : ''}</p>
+            <p class="meta">كاتب: ${item.author} ${item.date ? ' - ' + formatDate(item.date) : ''}</p>
             <p class="content">${item.content.substring(0, 200)}${item.content.length > 200 ? '...' : ''}</p>
             ${isAdmin ? `
                 <div class="article-actions" onclick="event.stopPropagation()">
@@ -821,7 +1178,7 @@ function renderAdmins(admins) {
         <div class="admin-item">
             <div class="info">
                 <span class="name">${admin.name}</span>
-                <span class="created">تاريخ الإنشاء: ${admin.createdAt ? new Date(admin.createdAt).toLocaleDateString('ar') : 'غير معروف'}</span>
+                <span class="created">تاريخ الإنشاء: ${formatDate(admin.createdAt) || 'غير معروف'}</span>
             </div>
             <div class="actions">
                 <button class="delete-btn" onclick="deleteAdmin('${admin.id}')">🗑️ حذف</button>
@@ -878,5 +1235,17 @@ async function deleteAdmin(adminId) {
     }
 }
 
+// Loading functions
+function showLoading() {
+    document.getElementById('loading-spinner').classList.remove('hidden');
+}
+
+function hideLoading() {
+    document.getElementById('loading-spinner').classList.add('hidden');
+}
+
 // Make functions global
 window.previewImage = previewImage;
+window.toggleTheme = toggleTheme;
+window.toggleMobileMenu = toggleMobileMenu;
+window.toggleFavorite = toggleFavorite;
