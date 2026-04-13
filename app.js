@@ -204,7 +204,6 @@ function showDashboard(isAdmin) {
     loadNews();
     loadArticles();
     renderFavorites();
-    populateCategoryFilter();
     showSection('books');
 }
 
@@ -610,29 +609,15 @@ function renderBooks(booksToRender) {
 // Filter books
 function filterBooks() {
     const searchQuery = document.getElementById('book-search').value.toLowerCase();
-    const categoryFilter = document.getElementById('category-filter').value;
 
     const filtered = books.filter(book => {
-        const matchesSearch = !searchQuery || 
+        return !searchQuery || 
             book.title.toLowerCase().includes(searchQuery) ||
             book.author.toLowerCase().includes(searchQuery) ||
             book.category.toLowerCase().includes(searchQuery);
-        
-        const matchesCategory = !categoryFilter || book.category === categoryFilter;
-        
-        return matchesSearch && matchesCategory;
     });
 
     renderBooks(filtered);
-}
-
-// Populate category filter
-function populateCategoryFilter() {
-    const select = document.getElementById('category-filter');
-    const categories = [...new Set(books.map(b => b.category))].sort();
-    
-    select.innerHTML = '<option value="">الكل</option>' + 
-        categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
 }
 
 // Search books
