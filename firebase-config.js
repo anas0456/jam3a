@@ -37,19 +37,23 @@ function getCurrentAdminId() {
 }
 
 // Set admin status
-function setAdminStatus(status, adminId = null) {
-  localStorage.setItem('adminLoggedIn', status);
-  if (adminId) {
-    localStorage.setItem('adminId', adminId);
-  } else {
-    localStorage.removeItem('adminId');
-  }
+function setAdminStatus(status, adminId = null, adminName = null) {
+    localStorage.setItem('adminLoggedIn', status);
+    if (adminId) {
+        localStorage.setItem('adminId', adminId);
+    } else {
+        localStorage.removeItem('adminId');
+    }
+    if (adminName) {
+        localStorage.setItem('adminName', adminName);
+    }
 }
 
 // Clear auth data
 function clearAuthData() {
   localStorage.removeItem('adminLoggedIn');
   localStorage.removeItem('adminId');
+  localStorage.removeItem('adminName');
   localStorage.removeItem('userEmail');
   localStorage.removeItem('userName');
 }

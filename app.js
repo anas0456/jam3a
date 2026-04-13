@@ -170,10 +170,9 @@ function checkAuth() {
         return;
     }
 
-    const userEmail = localStorage.getItem('userEmail');
     const userName = localStorage.getItem('userName');
-    if (userEmail) {
-        currentUser = { email: userEmail, name: userName };
+    if (userName) {
+        currentUser = { name: userName };
         showDashboard(false);
         return;
     }
@@ -231,21 +230,20 @@ function showAdminLogin() {
 // Handle login
 async function handleLogin(event) {
     event.preventDefault();
-    const email = document.getElementById('login-email').value;
+    const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
 
     try {
-        const snapshot = await db.collection('users').where('email', '==', email).where('password', '==', password).get();
+        const snapshot = await db.collection('users').where('username', '==', username).where('password', '==', password).get();
 
         if (snapshot.empty) {
-            showToast('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'error');
+            showToast('اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
             return;
         }
 
         const userData = snapshot.docs[0].data();
-        localStorage.setItem('userEmail', email);
         localStorage.setItem('userName', userData.name);
-        currentUser = { email: email, name: userData.name };
+        currentUser = { name: userData.name };
 
         showToast('تم تسجيل الدخول بنجاح', 'success');
         showDashboard(false);
@@ -258,27 +256,25 @@ async function handleLogin(event) {
 async function handleSignup(event) {
     event.preventDefault();
     const name = document.getElementById('signup-name').value;
-    const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
 
     try {
-        const snapshot = await db.collection('users').where('email', '==', email).get();
+        const snapshot = await db.collection('users').where('username', '==', name).get();
         
         if (!snapshot.empty) {
-            showToast('هذا البريد الإلكتروني موجود بالفعل', 'error');
+            showToast('اسم المستخدم موجود بالفعل', 'error');
             return;
         }
 
         await db.collection('users').add({
             name: name,
-            email: email,
+            username: name,
             password: password,
             createdAt: FieldValue.serverTimestamp()
         });
 
-        localStorage.setItem('userEmail', email);
         localStorage.setItem('userName', name);
-        currentUser = { email: email, name: name };
+        currentUser = { name: name };
 
         showToast('تم إنشاء الحساب بنجاح', 'success');
         showDashboard(false);
@@ -299,7 +295,7 @@ async function handleAdminLogin(event) {
         
         if (!snapshot.empty) {
             const adminData = snapshot.docs[0].data();
-            setAdminStatus('true', snapshot.docs[0].id);
+            setAdminStatus('true', snapshot.docs[0].id, adminData.name || username);
             showToast('تم تسجيل دخول المدير بنجاح', 'success');
             showDashboard(true);
             return;
@@ -307,7 +303,7 @@ async function handleAdminLogin(event) {
 
         // Fallback to hardcoded admin
         if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-            setAdminStatus('true', 'main-admin');
+            setAdminStatus('true', 'main-admin', 'anas');
             showToast('تم تسجيل دخول المدير بنجاح', 'success');
             showDashboard(true);
         } else {
@@ -316,7 +312,7 @@ async function handleAdminLogin(event) {
     } catch (error) {
         // Fallback to hardcoded if Firestore fails
         if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-            setAdminStatus('true', 'main-admin');
+            setAdminStatus('true', 'main-admin', 'anas');
             showToast('تم تسجيل دخول المدير بنجاح', 'success');
             showDashboard(true);
         } else {
@@ -360,6 +356,12 @@ function showSection(section) {
 
 // Load profile data
 function loadProfile() {
+    if (isAdminUser()) {
+        const adminName = localStorage.getItem('adminName') || 'مدير النظام';
+        document.getElementById('profile-name').textContent = adminName;
+        return;
+    }
+
     if (!currentUser) {
         showToast('سجل دخول أولاً', 'error');
         showSection('books');
@@ -367,9 +369,6 @@ function loadProfile() {
     }
 
     document.getElementById('profile-name').textContent = currentUser.name;
-    document.getElementById('profile-email').textContent = currentUser.email;
-    document.getElementById('profile-books').textContent = books.length;
-    document.getElementById('profile-favorites').textContent = favorites.length;
 }
 
 // Show change password form
@@ -397,9 +396,25 @@ async function changePassword(event) {
     }
 
     try {
-        // Get user from Firestore
+        // If admin
+        if (isAdminUser()) {
+            const adminId = getCurrentAdminId();
+            if (adminId === 'main-admin') {
+                showToast('لا يمكن تغيير كلمة مرور المدير الرئيسي', 'error');
+                return;
+            }
+            const snapshot = await db.collection('admins').doc(adminId).get();
+            if (snapshot.exists) {
+                await db.collection('admins').doc(adminId).update({ password: newPassword });
+                showToast('تم تغيير كلمة المرور بنجاح', 'success');
+                hideChangePassword();
+            }
+            return;
+        }
+
+        // Regular user
         const snapshot = await db.collection('users')
-            .where('email', '==', currentUser.email)
+            .where('username', '==', currentUser.name)
             .where('password', '==', currentPassword)
             .get();
 
@@ -442,9 +457,25 @@ async function changeName(event) {
     }
 
     try {
-        // Get user from Firestore
+        // If admin
+        if (isAdminUser()) {
+            const adminId = getCurrentAdminId();
+            if (adminId === 'main-admin') {
+                showToast('لا يمكن تغيير اسم المدير الرئيسي', 'error');
+                return;
+            }
+            await db.collection('admins').doc(adminId).update({ name: newName });
+            localStorage.setItem('adminName', newName);
+            document.getElementById('profile-name').textContent = newName;
+            document.getElementById('user-name').textContent = newName;
+            showToast('تم تغيير الاسم بنجاح', 'success');
+            hideEditName();
+            return;
+        }
+
+        // Regular user
         const snapshot = await db.collection('users')
-            .where('email', '==', currentUser.email)
+            .where('username', '==', currentUser.name)
             .get();
 
         if (snapshot.empty) {
@@ -452,9 +483,10 @@ async function changeName(event) {
             return;
         }
 
-        // Update name
+        // Update name and username
         await db.collection('users').doc(snapshot.docs[0].id).update({
-            name: newName
+            name: newName,
+            username: newName
         });
 
         // Update local storage and current user
@@ -511,7 +543,6 @@ function loadUsersList(usersSnap) {
         <div class="user-item">
             <div class="info">
                 <span class="name">${user.name}</span>
-                <span class="email">${user.email}</span>
                 <span class="created">تاريخ التسجيل: ${formatDate(user.createdAt) || 'غير معروف'}</span>
             </div>
         </div>
